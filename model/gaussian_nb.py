@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd 
 
 class GaussianNaiveBayes:
     def __init__(self):
@@ -11,9 +12,19 @@ class GaussianNaiveBayes:
         """
         Train the Gaussian Naive Bayes model
         """
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+        
+        y = np.array(y)
+
         self.classes = np.unique(y)
         for cls in self.classes:
-            X_cls = X[y == cls]
+            # boolean mask for the current class
+            mask = (y == cls)
+            
+            # mask is used to select rows for the current class
+            X_cls = X.iloc[mask] if isinstance(X, pd.DataFrame) else X[mask]
+            
             self.means[cls] = np.mean(X_cls, axis=0)
             self.variances[cls] = np.var(X_cls, axis=0)
             self.variances[cls] = np.where(self.variances[cls] == 0, 1e-9, self.variances[cls])  # Prevent zero variance
@@ -44,6 +55,9 @@ class GaussianNaiveBayes:
         """
         Predict the class labels for the input samples
         """
+        if isinstance(X, pd.DataFrame):
+            X = X.values
+        
         posteriors = []
         for cls in self.classes:
             prior = self.priors[cls]
@@ -51,7 +65,7 @@ class GaussianNaiveBayes:
             posterior = prior * likelihood
             posteriors.append(posterior)
         
-        posteriors = np.array(posteriors).T  # Stack posteriors
+        posteriors = np.array(posteriors).T 
         # print("Posteriors:\n", posteriors)
         predictions = np.argmax(posteriors, axis=1)
         return self.classes[predictions]
