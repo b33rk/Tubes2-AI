@@ -1,6 +1,9 @@
 # Tugas Besar 2 - Implementasi Algoritma Pembelajaran Mesin
 
-![Cat](cat.png)
+<p align="center">
+  <img src="cat.png" alt="Cat" width="600" />
+</p>
+
 
 ## Deskripsi Singkat
 Repository ini berisi implementasi algoritma pembelajaran mesin, yaitu **K-Nearest Neighbors (KNN)**, **Gaussian Naive-Bayes**, dan **ID3**. Selain implementasi, juga dilakukan perbandingan performa antara algoritma yang dibuat sendiri dengan pustaka *Scikit-learn* menggunakan metrik **F1 Macro Score**. Proses *cleaning*, *preprocessing*, dan validasi model turut disertakan dalam proyek ini dan dapat dilihat pada notebook.
@@ -24,6 +27,8 @@ Repository ini berisi implementasi algoritma pembelajaran mesin, yaitu **K-Neare
 ## Struktur Repository
 ```
 Tubes2-AI/
+├── doc/
+│   └── Tubes2_13522013_13522074_13522101.pdf
 ├── dataset/              
 ├── src/                   
 │   ├── knn.py           
