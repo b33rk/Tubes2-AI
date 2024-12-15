@@ -30,10 +30,11 @@ Tubes2-AI/
 ├── doc/
 │   └── Tubes2_13522013_13522074_13522101.pdf
 ├── dataset/              
-├── src/                   
-│   ├── knn.py           
-│   ├── gaussian_nb.py  
-│   ├── id3.py             
+├── src/     
+│   ├── model/              
+│   │   ├── knn.py           
+│   │   ├── gaussian_nb.py  
+│   │   ├── id3.py             
 │   └── notebook.ipynb
 ├── submission/
 ├── requirements.txt
