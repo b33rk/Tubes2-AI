@@ -1,189 +1,194 @@
+from sklearn.base import BaseEstimator, ClassifierMixin
 import numpy as np
-import pandas as pd
 from collections import Counter
 
-class ID3:
-    def __init__(self, max_depth=None):
-        self.tree = None
+class ID3(BaseEstimator, ClassifierMixin):
+    def __init__(self, max_depth=None, min_samples_split=2, min_impurity_decrease=0):
+        """
+        inisialisasi parameter:
+        - max_depth: Kedalaman maksimum pohon (default: None, tidak dibatasi).
+        - min_samples_split: Jumlah minimum sampel untuk membagi node (default: 2).
+        - min_impurity_decrease: Penurunan impurity minimum agar node dipecah (default: 0).
+        """
         self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.min_impurity_decrease = min_impurity_decrease
+        self.tree = None # untuk menyimpan pohon yang terbentuk
+        self.feature_names = None # menyimpan nama fitur
+
+    def get_params(self, deep=True):
+        return {
+            "max_depth": self.max_depth,
+            "min_samples_split": self.min_samples_split,
+            "min_impurity_decrease": self.min_impurity_decrease
+        }
+
+    def set_params(self, **params):
+        for key, value in params.items():
+            setattr(self, key, value)
+        return self
 
     @staticmethod
     def entropy(y):
-        """Calculate entropy of the target variable."""
-        counts = Counter(y)
+        """
+        menghitung entropy target variable y.
+        - parameter:
+          - y: array target kelas.
+        - output: nilai entropy (tingkat impurity).
+        """
+        counts = Counter(y) # hitung kemunculan setiap kelas
         probabilities = [count / len(y) for count in counts.values()]
         return -sum(p * np.log2(p) for p in probabilities if p > 0)
 
     def information_gain(self, X_column, y):
-        """Calculate information gain for a feature."""
-        total_entropy = self.entropy(y)
+        """
+        menghitung information gain untuk fitur tertentu.
+        - parameter:
+          - X_column: kolom fitur yang sedang diuji.
+          - y: array target kelas.
+        - output: nilai information gain.
+        """
+        total_impurity = self.entropy(y) # impurity sebelum split
+
         values, counts = np.unique(X_column, return_counts=True)
-        weighted_entropy = sum(
-            (counts[i] / len(X_column)) * self.entropy(y[X_column == values[i]])
+        # menghitung impurity setelah split
+        weighted_impurity = sum(
+            (counts[i] / len(X_column)) * 
+            (self.entropy(y[X_column == values[i]]))
             for i in range(len(values))
         )
-        return total_entropy - weighted_entropy
+        return total_impurity - weighted_impurity
 
-    def best_split(self, X, y, feature_names):
-        """Determine the best feature to split on, considering thresholds for continuous features."""
-        max_info_gain = -1
-        best_feature = None
+    def best_split(self, X, y):
+        """
+        menentukan fitur terbaik untuk melakukan split.
+        - parameter:
+          - X: data fitur (2D array).
+          - y: target kelas.
+        - output: indeks fitur terbaik dan threshold terbaik.
+        """
+        max_info_gain = -np.inf # nilai maksimum information gain
+        best_feature_idx = None
         best_threshold = None
 
-        for i, feature_name in enumerate(feature_names):
+        for i in range(X.shape[1]):
             X_column = X[:, i]
-            if np.issubdtype(X_column.dtype, np.number):
-                # Continuous feature
-                thresholds = np.unique(X_column)
-                for threshold in thresholds[:-1]:
+            
+            # cek tipe data fitur
+            if np.issubdtype(X_column.dtype, np.number): # fitur numerik
+                thresholds = [
+                    np.percentile(X_column, q) 
+                    for q in [25, 50, 75]
+                ]
+                for threshold in thresholds:
                     left = X_column <= threshold
                     right = X_column > threshold
-                    gain = self.information_gain(left, y)
-                    if gain > max_info_gain:
-                        max_info_gain = gain
-                        best_feature = feature_name
-                        best_threshold = threshold
-            else:
-                # Categorical feature
+                    
+                    # hanya akan split jika jumlah sampel di kedua sisi >= min_samples_split
+                    if (sum(left) >= self.min_samples_split and 
+                        sum(right) >= self.min_samples_split):
+                        gain = self.information_gain(left, y)
+                        
+                        if gain > max_info_gain and gain > self.min_impurity_decrease:
+                            max_info_gain = gain
+                            best_feature_idx = i
+                            best_threshold = threshold
+            else: # fitur kategorikal
                 gain = self.information_gain(X_column, y)
-                if gain > max_info_gain:
+                if gain > max_info_gain and gain > self.min_impurity_decrease:
                     max_info_gain = gain
-                    best_feature = feature_name
+                    best_feature_idx = i
                     best_threshold = None
 
-        return best_feature, best_threshold
+        return best_feature_idx, best_threshold
 
-    def build_tree(self, X, y, feature_names, depth=0):
-        """Recursively build the decision tree without pruning."""
-        if len(np.unique(y)) == 1:
-            return y[0]  # Pure node
+    def build_tree(self, X, y, depth=0):
+        """
+        membangun pohon keputusan secara rekursif.
+        - parameter:
+          - X: data fitur.
+          - y: target kelas.
+          - depth: Kedalaman saat ini.
+        - output: Pohon dalam bentuk dictionary.
+        """
+        # cek kondisi berhenti
+        if (self.max_depth is not None and depth >= self.max_depth) or \
+           len(y) < self.min_samples_split or \
+           len(np.unique(y)) == 1:
+            return Counter(y).most_common(1)[0][0]
 
-        if len(feature_names) == 0:
-            return Counter(y).most_common(1)[0][0]  # Majority vote
+        # find best split
+        best_feature_idx, best_threshold = self.best_split(X, y)
 
-        best_feature, best_threshold = self.best_split(X, y, feature_names)
+        # if no good split found, return majority class
+        if best_feature_idx is None:
+            return Counter(y).most_common(1)[0][0]
 
-        if best_feature is None:
-            return Counter(y).most_common(1)[0][0]  # Majority vote
+        # create tree node
+        tree = {
+            'feature': self.feature_names[best_feature_idx],
+            'threshold': best_threshold,
+            'children': {}
+        }
 
-        feature_idx = feature_names.index(best_feature)
-        tree = {best_feature: {}}
-
+        # create splits
         if best_threshold is not None:
-            # Continuous feature
-            left_indices = X[:, feature_idx] <= best_threshold
-            right_indices = X[:, feature_idx] > best_threshold
+            # continuous feature split
+            left_mask = X[:, best_feature_idx] <= best_threshold
+            right_mask = ~left_mask
 
-            tree[best_feature]["<= {:.2f}".format(best_threshold)] = self.build_tree(
-                X[left_indices], y[left_indices], feature_names, depth + 1
-            )
-            tree[best_feature]["> {:.2f}".format(best_threshold)] = self.build_tree(
-                X[right_indices], y[right_indices], feature_names, depth + 1
-            )
+            left_subtree = self.build_tree(X[left_mask], y[left_mask], depth + 1)
+            right_subtree = self.build_tree(X[right_mask], y[right_mask], depth + 1)
+
+            tree['children']['left'] = left_subtree
+            tree['children']['right'] = right_subtree
         else:
-            # Categorical feature
-            unique_values = np.unique(X[:, feature_idx])
+            # categorical feature split
+            unique_values = np.unique(X[:, best_feature_idx])
             for value in unique_values:
-                subset_indices = X[:, feature_idx] == value
-                subtree = self.build_tree(
-                    X[subset_indices], y[subset_indices], feature_names, depth + 1
-                )
-                tree[best_feature][value] = subtree
+                mask = X[:, best_feature_idx] == value
+                subtree = self.build_tree(X[mask], y[mask], depth + 1)
+                tree['children'][value] = subtree
 
         return tree
 
+    def fit(self, X, y, feature_names=None):
+        """melatih model"""
+        if feature_names is None:
+            feature_names = [f'feature_{i}' for i in range(X.shape[1])]
+        
+        self.feature_names = feature_names
+        y = np.array(y).flatten()
+        self.majority_class = Counter(y).most_common(1)[0][0]
+        self.tree = self.build_tree(X, y)
+        return self
 
-    def fit(self, X, y, feature_names):
-        """Fit the decision tree to the data."""
-        self.tree = self.build_tree(X, y, feature_names)
+    def predict_instance(self, instance):
+        """memprediksi kelas untuk satu instance."""
+        node = self.tree
 
-    def predict_instance(self, instance, tree):
-        """Predict the target value for a single instance."""
-        if not isinstance(tree, dict):
-            return tree
+        while isinstance(node, dict):
+            feature = node['feature']
+            threshold = node['threshold']
+            
+            feature_idx = self.feature_names.index(feature)
+            feature_value = instance[feature_idx]
 
-        feature = next(iter(tree))
-        subtree = None
-
-        if feature in instance:
-            value = instance[feature]
-            subtree = tree[feature].get(value, None)
-            if subtree is None:  # Handle continuous feature splits
-                for key in tree[feature]:
-                    if key.startswith("<=") and float(value) <= float(key[3:]):
-                        subtree = tree[feature][key]
-                    elif key.startswith(">") and float(value) > float(key[2:]):
-                        subtree = tree[feature][key]
-                    if subtree:
-                        break
-
-        if subtree is None:
-            return None
-
-        return self.predict_instance(instance, subtree)
-
-    def predict(self, X, feature_names):
-        """Predict the target values for multiple instances."""
-        predictions = []
-        for instance in X:
-            instance_dict = {feature_names[i]: instance[i] for i in range(len(feature_names))}
-            predictions.append(self.predict_instance(instance_dict, self.tree))
-        return predictions
-
-    def print_tree(self, tree=None, feature_names=None, encoders=None, indent=""):
-        """Print the full tree in a readable format with decoded feature values."""
-        if tree is None:
-            tree = self.tree
-
-        if not isinstance(tree, dict):
-            # Decode target variable
-            decoded_value = encoders["Aktivitas"].inverse_transform([tree])[0] if encoders else tree
-            print(indent + f"-> {decoded_value}")
-            return
-
-        for key, subtree in tree.items():
-            if isinstance(subtree, dict):
-                for subkey, subsubtree in subtree.items():
-                    # Handle continuous thresholds and categorical decoding
-                    if encoders and key in encoders and not any(op in subkey for op in ["<=", ">"]):
-                        decoded_subkey = encoders[key].inverse_transform([int(subkey)])[0]
-                        print(indent + f"If {key} = {decoded_subkey}:")
-                    else:
-                        # Print for thresholds (continuous features)
-                        print(indent + f"If {key} {subkey}:")
-                    self.print_tree(subsubtree, feature_names, encoders, indent + "    ")
+            if threshold is not None:
+                # continuous feature
+                if feature_value <= threshold:
+                    node = node['children']['left']
+                else:
+                    node = node['children']['right']
             else:
-                print(indent + f"If {key}:")
-                self.print_tree(subtree, feature_names, encoders, indent + "    ")
+                # categorical feature
+                if feature_value in node['children']:
+                    node = node['children'][feature_value]
+                else:
+                    return self.majority_class
 
+        return node
 
-# CONTOH NGETES ONLY
-data = {
-    "Deadline": ["Urgent", "Urgent", "Dekat", "Tidak ada", "Tidak ada", "Tidak ada", "Dekat", "Dekat", "Dekat", "Urgent"],
-    "Ada Hangout?": ["ya", "Tidak", "ya", "Ya", "Tidak", "Ya", "Tidak", "Tidak", "Ya", "Tidak"],
-    "Malas?": ["Ya", "Ya", "Ya", "Tidak", "Ya", "Tidak", "Tidak", "Ya", "Ya", "Tidak"],
-    "Aktivitas": ["Kumpul-kumpul", "Belajar", "Kumpul-kumpul", "Kumpul-kumpul", "Jalan-jalan ke mall", "Kumpul-kumpul", "Belajar", "Nonton TV", "Kumpul-kumpul", "Belajar"]
-}
-
-df = pd.DataFrame(data)
-
-feature_columns = ["Deadline", "Ada Hangout?", "Malas?"]
-target_column = "Aktivitas"
-
-# encode categorical data
-from sklearn.preprocessing import LabelEncoder
-encoders = {col: LabelEncoder().fit(df[col]) for col in feature_columns + [target_column]}
-df_encoded = df.apply(lambda col: encoders[col.name].transform(col))
-
-# split features and target
-X = df_encoded[feature_columns].values
-y = df_encoded[target_column].values
-feature_names = feature_columns
-
-# train the ID3 model
-model = ID3(max_depth=3)
-model.fit(X, y, feature_names)
-
-# print the decision tree 4 testing purposes
-print("Decision Tree:")
-model.print_tree(feature_names=feature_names, encoders=encoders)
+    def predict(self, X):
+        """memprediksi kelas untuk banyak instance."""
+        return np.array([self.predict_instance(instance) for instance in X])
