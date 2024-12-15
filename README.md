@@ -77,9 +77,5 @@ Jalankan file `notebook.ipynb` dengan menekan tombol "Run All".
 | Implementasi Model KNN             | Abdullah Mubarak (13522101)    |
 | Implementasi Model Gaussian Naive-Bayes | Muhammad Naufal Aulia (13522074) |
 | Implementasi Model ID3             | Denise Felicia Tiowanni (13522013) |
-| Data Cleaning dan Preprocessing    | Denise Felicia Tiowanni (13522013) |
-|                                    | Muhammad Naufal Aulia (13522074) |
-|                                    | Abdullah Mubarak (13522101)    |
-| Laporan                           | Denise Felicia Tiowanni (13522013) |
-|                                    | Muhammad Naufal Aulia (13522074) |
-|                                    | Abdullah Mubarak (13522101)    |
+| Data Cleaning dan Preprocessing    | Denise Felicia Tiowanni (13522013), Muhammad Naufal Aulia (13522074), Abdullah Mubarak (13522101) |
+| Laporan                           | Denise Felicia Tiowanni (13522013), Muhammad Naufal Aulia (13522074), Abdullah Mubarak (13522101) |
